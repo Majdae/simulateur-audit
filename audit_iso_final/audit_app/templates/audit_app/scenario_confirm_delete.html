@@ -1,0 +1,24 @@
+{% extends 'audit_app/base.html' %}
+{% block title %}Supprimer — {{ scenario.company_name }}{% endblock %}
+{% block content %}
+<div style="min-height:calc(100vh - 56px);display:flex;align-items:center;justify-content:center;padding:2rem;">
+  <div class="card" style="max-width:480px;width:100%;text-align:center;padding:2.5rem;">
+    <div style="font-size:3rem;margin-bottom:1rem;">🗑️</div>
+    <h2 class="mb-2">Supprimer ce scénario ?</h2>
+    <p class="text-muted mb-4" style="font-size:14px;">
+      Vous êtes sur le point de supprimer <strong style="color:var(--text);">{{ scenario.company_name }}</strong>
+      ainsi que tous ses contrôles et preuves associés.<br>
+      <strong style="color:var(--red);">Cette action est irréversible.</strong>
+    </p>
+    <div class="flex-center gap-2" style="justify-content:center;">
+      <a href="{% url 'scenario_list' %}" class="btn btn-secondary">Annuler</a>
+      <form method="post" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" class="btn" style="background:var(--red);color:#fff;">
+          Oui, supprimer définitivement
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

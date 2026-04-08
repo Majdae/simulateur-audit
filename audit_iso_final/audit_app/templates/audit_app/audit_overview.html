@@ -1,0 +1,200 @@
+{% extends 'audit_app/base.html' %}
+{% block title %}Audit – {{ scenario.company_name }}{% endblock %}
+{% block content %}
+<style>
+  .audit-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 1.5rem 0;
+  }
+  .context-box {
+    background: rgba(37,99,235,.06);
+    border: 1px solid rgba(37,99,235,.15);
+    border-radius: 10px;
+    padding: 1.2rem;
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.7;
+  }
+  .objective-box {
+    background: rgba(16,185,129,.06);
+    border: 1px solid rgba(16,185,129,.15);
+    border-radius: 10px;
+    padding: 1.2rem;
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.7;
+  }
+  .control-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.2rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: .75rem;
+    text-decoration: none;
+    color: var(--text);
+    transition: all .15s;
+  }
+  .control-item:hover { border-color: var(--accent); transform: translateX(4px); }
+  .control-num {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--surface2);
+    padding: 3px 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .control-info { flex: 1; min-width: 0; }
+  .control-title { font-weight: 600; font-size: 13px; }
+  .control-category { color: var(--text-muted); font-size: 12px; }
+  .control-status { flex-shrink: 0; }
+  .score-ring {
+    width: 80px; height: 80px;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .score-ring svg { transform: rotate(-90deg); }
+  .score-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-head);
+    font-weight: 800;
+    font-size: 18px;
+  }
+  .score-text small { font-size: 9px; color: var(--text-muted); font-family: var(--font-body); font-weight: 400; }
+  .complete-btn-wrap { margin-top: 2rem; padding: 1.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; text-align: center; }
+</style>
+
+<div class="audit-header">
+  <div class="container">
+    <div class="flex-between">
+      <div class="flex-center gap-4">
+        <span style="font-size:2.5rem">{{ scenario.icon }}</span>
+        <div>
+          <div class="flex-center gap-2 mb-1">
+            <span class="badge badge-blue">{{ scenario.get_sector_display }}</span>
+            <span class="badge {% if scenario.difficulty == 'debutant' %}badge-green{% elif scenario.difficulty == 'intermediaire' %}badge-orange{% else %}badge-red{% endif %}">{{ scenario.get_difficulty_display }}</span>
+            <span class="badge {% if session.status == 'termine' %}badge-green{% else %}badge-orange{% endif %}">
+              {% if session.status == 'termine' %}✓ Terminé{% else %}En cours{% endif %}
+            </span>
+          </div>
+          <h1 style="font-size:1.5rem;">{{ scenario.company_name }}</h1>
+          <p class="text-muted" style="font-size:13px;">{{ scenario.company_size }} · Démarré le {{ session.started_at|date:"d/m/Y à H:i" }}</p>
+        </div>
+      </div>
+      <a href="{% url 'scenario_list' %}" class="btn btn-secondary btn-sm">← Scénarios</a>
+    </div>
+  </div>
+</div>
+
+<div class="page">
+  <div class="container">
+    <div style="display:grid;grid-template-columns:1fr 320px;gap:2rem;align-items:start;">
+
+      <!-- Controls List -->
+      <div>
+        <!-- Progress -->
+        <div class="card mb-4">
+          <div class="flex-between mb-2">
+            <div>
+              <h3>Progression de l'audit</h3>
+              <p class="text-muted" style="font-size:12px;">{{ evaluated_count }}/{{ total_count }} contrôles évalués</p>
+            </div>
+            <div class="flex-center gap-4">
+              <div class="score-ring">
+                <svg width="80" height="80" viewBox="0 0 80 80">
+                  <circle cx="40" cy="40" r="34" fill="none" stroke="var(--border)" stroke-width="6"/>
+                  <circle cx="40" cy="40" r="34" fill="none"
+                    stroke="{% if session.score_percent >= 70 %}var(--green){% elif session.score_percent >= 40 %}var(--orange){% else %}var(--accent){% endif %}"
+                    stroke-width="6"
+                    stroke-dasharray="{% widthratio session.score_percent 100 213 %} 213"
+                    stroke-linecap="round"/>
+                </svg>
+                <div class="score-text">
+                  {{ session.score_percent }}%<small>Score</small>
+                </div>
+              </div>
+              <div>
+                <div style="font-family:var(--font-mono);font-size:1.5rem;font-weight:700;">{{ session.score }}<span style="color:var(--text-muted);font-size:1rem;">/{{ session.max_score }}</span></div>
+                <div style="font-size:11px;color:var(--text-muted);">points</div>
+              </div>
+            </div>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width:{{ session.progress_percent }}%"></div>
+          </div>
+        </div>
+
+        <h2 class="mb-2">Contrôles à auditer</h2>
+
+        {% for item in controls_data %}
+        <a href="{% url 'audit_control' session.id item.sc.id %}" class="control-item">
+          <span class="control-num">{{ item.sc.control.code }}</span>
+          <div class="control-info">
+            <div class="control-title">{{ item.sc.control.title }}</div>
+            <div class="control-category">{{ item.sc.control.get_category_display }} · {{ item.sc.control.get_norm_display }}</div>
+          </div>
+          <div class="control-status">
+            {% if item.evaluated %}
+              {% if item.evaluation.conformity == 'conforme' %}
+              <span class="badge badge-green">✓ Conforme</span>
+              {% elif item.evaluation.conformity == 'non_conforme' %}
+              <span class="badge badge-red">✗ Non Conforme</span>
+              {% elif item.evaluation.conformity == 'partiel' %}
+              <span class="badge badge-orange">~ Partiel</span>
+              {% else %}
+              <span class="badge badge-gray">N/A</span>
+              {% endif %}
+              <span style="font-size:11px;color:var(--text-muted);display:block;text-align:right;margin-top:2px;">{{ item.evaluation.points_earned }}/10 pts</span>
+            {% else %}
+              <span class="badge badge-gray">À auditer</span>
+            {% endif %}
+          </div>
+        </a>
+        {% endfor %}
+
+        {% if session.status == 'en_cours' %}
+        <div class="complete-btn-wrap">
+          {% if evaluated_count == total_count %}
+          <h3 class="mb-2"> Tous les contrôles ont été évalués !</h3>
+          <p class="text-muted mb-2" style="font-size:13px;">Vous pouvez maintenant finaliser votre rapport d'audit.</p>
+          <form method="post" action="{% url 'complete_audit' session.id %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-green btn-lg">Finaliser l'audit et générer le rapport</button>
+          </form>
+          {% else %}
+          <p class="text-muted" style="font-size:13px;">Évaluez tous les contrôles pour finaliser l'audit.</p>
+          <p style="font-size:12px;color:var(--text-muted);margin-top:.5rem;">{{ evaluated_count }}/{{ total_count }} contrôles évalués</p>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="complete-btn-wrap">
+          <a href="{% url 'audit_report' session.id %}" class="btn btn-primary btn-lg"> Voir le rapport complet</a>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Sidebar -->
+      <div>
+        <div class="card mb-2">
+          <h3 class="mb-2"> Contexte Entreprise</h3>
+          <div class="context-box">{{ scenario.company_context }}</div>
+        </div>
+        <div class="card">
+          <h3 class="mb-2"> Objectif de l'Audit</h3>
+          <div class="objective-box">{{ scenario.audit_objective }}</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

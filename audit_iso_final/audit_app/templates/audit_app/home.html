@@ -1,0 +1,133 @@
+{% extends 'audit_app/base.html' %}
+{% block title %}Learn⇒Audit — Simulateur d'Audit ISO 2700x{% endblock %}
+{% block content %}
+<style>
+  .hero {
+    min-height: calc(100vh - 0px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 4rem 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(37,99,235,.15), transparent 70%),
+                radial-gradient(ellipse 60% 40% at 80% 60%, rgba(56,189,248,.08), transparent 60%);
+  }
+  .hero-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(30,42,64,.4) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(30,42,64,.4) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: .5;
+  }
+  .hero-content { position: relative; z-index: 1; max-width: 700px; }
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(37,99,235,.12);
+    border: 1px solid rgba(37,99,235,.25);
+    color: var(--accent2);
+    padding: 5px 14px;
+    border-radius: 99px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+  }
+  .hero h1 {
+    font-size: clamp(2.5rem, 6vw, 4rem);
+    line-height: 1.05;
+    margin-bottom: 1.2rem;
+    background: linear-gradient(135deg, #e2e8f0 30%, var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero p { font-size: 1.1rem; color: var(--text-dim); max-width: 520px; margin: 0 auto 2.5rem; line-height: 1.7; }
+  .hero-cta { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+  .features {
+    padding: 5rem 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+  }
+  .feature-card {
+    padding: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg);
+    transition: border-color .2s, transform .2s;
+  }
+  .feature-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .feature-icon { font-size: 2rem; margin-bottom: 1rem; }
+  .feature-card h3 { margin-bottom: .5rem; font-size: 1rem; }
+  .feature-card p { color: var(--text-muted); font-size: 13px; line-height: 1.6; }
+  .norms-bar {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 3rem;
+  }
+  .norm-tag {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .norm-tag strong { color: var(--accent2); display: block; font-size: 16px; }
+</style>
+
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-content">
+    <div class="hero-badge"> ISO</div>
+    <h1>Simulateur d'Audit<br>ISO 2700x</h1>
+    <p>Apprenez à auditer la conformité des systèmes d'information en situation réelle. Collectez des preuves, évaluez des contrôles et rédigez vos rapports d'audit.</p>
+    <div class="hero-cta">
+      <a href="{% url 'register' %}" class="btn btn-primary btn-lg">Commencer l'audit →</a>
+      <a href="{% url 'login' %}" class="btn btn-secondary btn-lg">Se connecter</a>
+    </div>
+    <div class="norms-bar">
+      <div class="norm-tag"><strong>ISO 27001</strong>SMSI</div>
+      <div class="norm-tag"><strong>ISO 27002</strong>Contrôles</div>
+      <div class="norm-tag"><strong>ISO 27005</strong>Risques</div>
+    </div>
+  </div>
+</section>
+
+<section class="features">
+  <div class="container">
+    <div class="grid-3" style="max-width:900px; margin:0 auto;">
+      <div class="feature-card">
+       
+        <h3>Scénarios Réalistes</h3>
+        <p>Auditez des entreprises fictives dans différents secteurs : hôpital, e-commerce, banque, industrie.</p>
+      </div>
+      <div class="feature-card">
+      
+        <h3>Collecte de Preuves</h3>
+        <p>Consultez des documents, logs, configurations et entretiens simulés pour bâtir votre dossier d'audit.</p>
+      </div>
+      <div class="feature-card">
+       
+        <h3>Rapport Automatique</h3>
+        <p>Générez un rapport d'audit complet avec vos constatations, non-conformités et recommandations.</p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

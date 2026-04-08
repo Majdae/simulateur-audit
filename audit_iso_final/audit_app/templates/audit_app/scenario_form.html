@@ -1,0 +1,153 @@
+{% extends 'audit_app/base.html' %}
+{% block title %}{% if editing %}Modifier{% else %}Créer{% endif %} un Scénario — Learn⇒Audit{% endblock %}
+{% block content %}
+<style>
+  .page-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.5rem 0; }
+  .form-wrap { max-width: 860px; margin: 0 auto; padding: 2rem 0; }
+  .section-title {
+    font-size: .8rem; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--accent2); margin-bottom: 1.2rem; padding-bottom: .5rem;
+    border-bottom: 1px solid var(--border); font-weight: 700;
+  }
+  .icon-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .icon-option { display: none; }
+  .icon-label {
+    display: flex; align-items: center; justify-content: center;
+    width: 48px; height: 48px; font-size: 1.6rem;
+    border: 2px solid var(--border); border-radius: 10px;
+    cursor: pointer; transition: all .15s; background: var(--surface2);
+  }
+  .icon-label:hover { border-color: var(--accent); transform: scale(1.1); }
+  .icon-option:checked + .icon-label {
+    border-color: var(--accent2); background: rgba(56,189,248,.12);
+    box-shadow: 0 0 0 3px rgba(56,189,248,.2);
+  }
+  .steps-bar { display: flex; margin-bottom: 2rem; }
+  .step {
+    flex: 1; text-align: center; padding: .8rem .5rem; font-size: 12px;
+    font-weight: 600; color: var(--text-muted); background: var(--surface2);
+    border: 1px solid var(--border);
+  }
+  .step:first-child { border-radius: 8px 0 0 8px; }
+  .step:last-child { border-radius: 0 8px 8px 0; }
+  .step.active { background: rgba(37,99,235,.12); color: var(--accent2); border-color: rgba(37,99,235,.3); }
+  .step-num { display: block; font-size: 1.1rem; margin-bottom: 2px; }
+</style>
+
+<div class="page-header">
+  <div class="container">
+    <div class="flex-between">
+      <div>
+        <h1>{% if editing %} Modifier le Scénario{% else %}➕ Nouveau Scénario{% endif %}</h1>
+        <p class="text-muted mt-1" style="font-size:13px;">
+          Étape 1 sur 3 — Informations générales de l'entreprise fictive
+        </p>
+      </div>
+      <a href="{% url 'scenario_list' %}" class="btn btn-secondary">← Retour aux scénarios</a>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="form-wrap">
+
+    <div class="steps-bar">
+      <div class="step active"><span class="step-num">①</span>Informations</div>
+      <div class="step"><span class="step-num">②</span>Contrôles ISO</div>
+      <div class="step"><span class="step-num">③</span>Preuves</div>
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="card mb-4">
+        <div class="section-title"> Identité de l'Entreprise</div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Nom de l'entreprise *</label>
+            <input type="text" name="company_name" class="form-control"
+              placeholder="ex: Hôpital Saint-Luc" required
+              value="{% if editing %}{{ scenario.company_name }}{% endif %}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Taille *</label>
+            <input type="text" name="company_size" class="form-control"
+              placeholder="ex: 200 employés, 400 lits"
+              value="{% if editing %}{{ scenario.company_size }}{% endif %}" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Titre du scénario *</label>
+          <input type="text" name="title" class="form-control"
+            placeholder="ex: Audit SMSI – Hôpital Régional Saint-Luc" required
+            value="{% if editing %}{{ scenario.title }}{% endif %}">
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Secteur *</label>
+            <select name="sector" class="form-control" required>
+              <option value="">-- Choisir --</option>
+              {% for val, label in sector_choices %}
+              <option value="{{ val }}" {% if editing and scenario.sector == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Difficulté *</label>
+            <select name="difficulty" class="form-control" required>
+              {% for val, label in difficulty_choices %}
+              <option value="{{ val }}" {% if editing and scenario.difficulty == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Icône</label>
+          <div class="icon-grid">
+            {% for icon in icons %}
+            <input type="radio" name="icon" id="icon-{{ forloop.counter }}" value="{{ icon }}" class="icon-option"
+              {% if editing and scenario.icon == icon %}checked{% elif not editing and forloop.first %}checked{% endif %}>
+            <label for="icon-{{ forloop.counter }}" class="icon-label">{{ icon }}</label>
+            {% endfor %}
+          </div>
+        </div>
+        {% if editing %}
+        <div class="form-group mt-2">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;">
+            <input type="checkbox" name="is_active" style="accent-color:var(--green);"
+              {% if scenario.is_active %}checked{% endif %}>
+            Scénario actif (visible dans la liste)
+          </label>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="card mb-4">
+        <div class="section-title"> Description & Contexte</div>
+        <div class="form-group">
+          <label class="form-label">Description courte *</label>
+          <textarea name="description" class="form-control" rows="2" required
+            placeholder="1-2 phrases affichées sur la carte du scénario">{% if editing %}{{ scenario.description }}{% endif %}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contexte de l'entreprise *</label>
+          <textarea name="company_context" class="form-control" rows="5" required
+            placeholder="Décrivez l'entreprise : activité, SI, enjeux, raisons de l'audit…">{% if editing %}{{ scenario.company_context }}{% endif %}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Objectif de l'audit *</label>
+          <textarea name="audit_objective" class="form-control" rows="3" required
+            placeholder="ex: Évaluer la conformité du SMSI aux exigences ISO 27001…">{% if editing %}{{ scenario.audit_objective }}{% endif %}</textarea>
+        </div>
+      </div>
+
+      <div class="flex-between">
+        <a href="{% url 'scenario_list' %}" class="btn btn-secondary">Annuler</a>
+        <button type="submit" class="btn btn-primary btn-lg">
+          {% if editing %}Enregistrer →{% else %}Créer et ajouter les contrôles →{% endif %}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,307 @@
+{% extends 'audit_app/base.html' %}
+{% block title %}Rapport d'Audit — {{ session.scenario.company_name }}{% endblock %}
+{% block content %}
+<style>
+  .report-header {
+    background: linear-gradient(135deg, var(--surface), var(--surface2));
+    border-bottom: 1px solid var(--border);
+    padding: 2rem 0;
+  }
+  .report-meta { color: var(--text-muted); font-size: 13px; margin-top: .5rem; }
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 2rem 0; }
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem;
+    text-align: center;
+  }
+  .summary-num { font-family: var(--font-head); font-size: 2.5rem; font-weight: 800; }
+  .summary-label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; margin-top: 4px; }
+  .eval-row {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem;
+    margin-bottom: .75rem;
+    background: var(--surface);
+  }
+  .eval-row-header { display: flex; align-items: center; gap: 1rem; margin-bottom: .75rem; flex-wrap:wrap; }
+  .eval-code { font-family: var(--font-mono); font-size: 11px; background: var(--surface2); padding: 3px 8px; border-radius: 4px; white-space:nowrap; }
+  .eval-details { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; font-size: 13px; color: var(--text-dim); }
+  .detail-box { background: var(--surface2); border-radius: 6px; padding: .75rem; }
+  .detail-label { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); margin-bottom: 4px; }
+  .verdict { text-align: center; padding: 2rem; border-radius: 12px; margin: 2rem 0; }
+  .verdict-good { background: rgba(16,185,129,.08); border: 1px solid rgba(16,185,129,.2); }
+  .verdict-medium { background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.2); }
+  .verdict-poor { background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.2); }
+  .chart-wrap { margin: 1rem 0; }
+  .chart-row { display:flex; align-items:center; gap:.75rem; margin-bottom:.5rem; font-size:12px; }
+  .chart-row-label { width: 120px; color: var(--text-muted); flex-shrink:0; text-align:right; }
+  .chart-row-bar { flex:1; height:18px; background:var(--surface2); border-radius:4px; overflow:hidden; }
+  .chart-row-fill { height:100%; border-radius:4px; }
+  .chart-row-count { width:30px; text-align:left; font-family:var(--font-mono); font-weight:700; }
+  .risk-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .risk-table th { background:var(--surface2); padding:6px 10px; text-align:left; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border); }
+  .risk-table td { padding:7px 10px; border-bottom:1px solid var(--border); color:var(--text-dim); }
+  .risk-table tr:last-child td { border-bottom:none; }
+</style>
+
+<div class="report-header">
+  <div class="container">
+    <div class="flex-between">
+      <div>
+        <div class="flex-center gap-2 mb-1">
+         
+          <span class="badge badge-blue">{{ session.scenario.get_sector_display }}</span>
+          <span class="badge {% if session.status == 'termine' %}badge-green{% else %}badge-orange{% endif %}">
+            {% if session.status == 'termine' %}Audit Terminé{% else %}En cours{% endif %}
+          </span>
+        </div>
+        <h1>Rapport d'Audit</h1>
+        <div class="report-meta">
+          <strong>Entité :</strong> {{ session.scenario.company_name }} ·
+          <strong>Auditeur :</strong> {{ session.user.username }} ·
+          <strong>Date :</strong> {% if session.completed_at %}{{ session.completed_at|date:"d/m/Y" }}{% else %}{{ session.started_at|date:"d/m/Y" }}{% endif %}
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <a href="{% url 'audit_overview' session.id %}" class="btn btn-secondary">← Vue d'ensemble</a>
+        <a href="{% url 'audit_report_pdf' session.id %}" class="btn btn-secondary" style="margin-left:.5rem;border-color:var(--green);color:var(--green);" title="Telecharger le rapport en PDF">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Telecharger PDF
+        </a>
+        <a href="{% url 'scenario_list' %}" class="btn btn-primary" style="margin-left:.5rem;">Nouvel Audit</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page">
+  <div class="container">
+
+    <!-- Verdict -->
+    <div class="verdict {% if session.score_percent >= 70 %}verdict-good{% elif session.score_percent >= 40 %}verdict-medium{% else %}verdict-poor{% endif %}">
+      <div style="font-size:3rem;margin-bottom:.75rem;">
+        {% if session.score_percent >= 70 %}{% elif session.score_percent >= 40 %}⚠️{% else %}{% endif %}
+      </div>
+      <h2 style="color:{% if session.score_percent >= 70 %}var(--green){% elif session.score_percent >= 40 %}var(--orange){% else %}var(--red){% endif %}">
+        {% if session.score_percent >= 70 %}Bonne Conformité
+        {% elif session.score_percent >= 40 %}Conformité Partielle
+        {% else %}Non-Conformité Critique{% endif %}
+      </h2>
+      <p class="text-muted" style="font-size:14px;margin-top:.5rem;">
+        {% if session.score_percent >= 70 %}L'organisation présente un niveau de conformité satisfaisant aux exigences ISO 27001/27002.
+        {% elif session.score_percent >= 40 %}Des efforts significatifs sont nécessaires pour atteindre la conformité ISO.
+        {% else %}De nombreuses non-conformités critiques ont été identifiées, nécessitant des actions correctives urgentes.{% endif %}
+      </p>
+      <div style="max-width:400px;margin:1.5rem auto 0;">
+        <div class="flex-between mb-1">
+          <span style="font-size:12px;color:var(--text-muted);">Score global</span>
+          <span style="font-family:var(--font-head);font-weight:800;font-size:1.2rem;">
+            {{ session.score }}/{{ session.max_score }} pts ({{ session.score_percent }}%)
+          </span>
+        </div>
+        <div style="height:12px;background:var(--border);border-radius:99px;overflow:hidden;">
+          <div style="height:100%;border-radius:99px;width:{{ session.score_percent }}%;background:{% if session.score_percent >= 70 %}var(--green){% elif session.score_percent >= 40 %}var(--orange){% else %}var(--red){% endif %};"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 280px;gap:2rem;align-items:start;">
+      <div>
+
+        <!-- Summary Cards -->
+        <div class="summary-grid">
+          <div class="summary-card" style="border-color:rgba(16,185,129,.2)">
+            <div class="summary-num" style="color:var(--green)">{{ conformes }}</div>
+            <div class="summary-label" style="color:var(--green)">✓ Conformes</div>
+          </div>
+          <div class="summary-card" style="border-color:rgba(239,68,68,.2)">
+            <div class="summary-num" style="color:var(--red)">{{ non_conformes }}</div>
+            <div class="summary-label" style="color:var(--red)">✗ Non Conformes</div>
+          </div>
+          <div class="summary-card" style="border-color:rgba(245,158,11,.2)">
+            <div class="summary-num" style="color:var(--orange)">{{ partiels }}</div>
+            <div class="summary-label" style="color:var(--orange)">~ Partiels</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-num" style="color:var(--text-muted)">{{ na }}</div>
+            <div class="summary-label" style="color:var(--text-muted)">— N/A</div>
+          </div>
+        </div>
+
+        <!-- Bar Chart -->
+        {% if total > 0 %}
+        <div class="card mb-4">
+          <h3 class="mb-3">Répartition de la Conformité</h3>
+          <div class="chart-wrap">
+            <div class="chart-row">
+              <span class="chart-row-label">✓ Conformes</span>
+              <div class="chart-row-bar">
+                <div class="chart-row-fill" style="background:var(--green);width:{% widthratio conformes total 100 %}%"></div>
+              </div>
+              <span class="chart-row-count" style="color:var(--green)">{{ conformes }}</span>
+            </div>
+            <div class="chart-row">
+              <span class="chart-row-label">~ Partiels</span>
+              <div class="chart-row-bar">
+                <div class="chart-row-fill" style="background:var(--orange);width:{% widthratio partiels total 100 %}%"></div>
+              </div>
+              <span class="chart-row-count" style="color:var(--orange)">{{ partiels }}</span>
+            </div>
+            <div class="chart-row">
+              <span class="chart-row-label">✗ Non Conformes</span>
+              <div class="chart-row-bar">
+                <div class="chart-row-fill" style="background:var(--red);width:{% widthratio non_conformes total 100 %}%"></div>
+              </div>
+              <span class="chart-row-count" style="color:var(--red)">{{ non_conformes }}</span>
+            </div>
+            {% if na %}
+            <div class="chart-row">
+              <span class="chart-row-label">— N/A</span>
+              <div class="chart-row-bar">
+                <div class="chart-row-fill" style="background:var(--border);width:{% widthratio na total 100 %}%"></div>
+              </div>
+              <span class="chart-row-count" style="color:var(--text-muted)">{{ na }}</span>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Detailed Evaluations -->
+        <h2 class="mb-3">Détail des Constatations</h2>
+        {% for ev in evaluations %}
+        <div class="eval-row">
+          <div class="eval-row-header">
+            <span class="eval-code">{{ ev.scenario_control.control.code }}</span>
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;font-size:14px;">{{ ev.scenario_control.control.title }}</div>
+              <div style="color:var(--text-muted);font-size:12px;">{{ ev.scenario_control.control.get_category_display }}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:.5rem;flex-shrink:0;">
+              {% if ev.conformity == 'conforme' %}<span class="badge badge-green">✓ Conforme</span>
+              {% elif ev.conformity == 'non_conforme' %}<span class="badge badge-red">✗ Non Conforme</span>
+              {% elif ev.conformity == 'partiel' %}<span class="badge badge-orange">~ Partiel</span>
+              {% else %}<span class="badge badge-gray">— N/A</span>{% endif %}
+              <span class="badge {% if ev.points_earned >= 8 %}badge-green{% elif ev.points_earned >= 5 %}badge-orange{% else %}badge-red{% endif %}">
+                {{ ev.points_earned }}/10 pts
+              </span>
+            </div>
+          </div>
+
+          {% if ev.justification or ev.recommendation or ev.risk_level %}
+          <div class="eval-details">
+            {% if ev.justification %}
+            <div class="detail-box">
+              <div class="detail-label">Justification</div>
+              {{ ev.justification }}
+            </div>
+            {% endif %}
+            {% if ev.recommendation %}
+            <div class="detail-box" style="border-left:3px solid var(--accent);">
+              <div class="detail-label">Recommandation</div>
+              {{ ev.recommendation }}
+            </div>
+            {% endif %}
+            {% if ev.risk_level %}
+            <div class="detail-box">
+              <div class="detail-label">Risque</div>
+              <span class="badge {% if ev.risk_level == 'critique' %}badge-red{% elif ev.risk_level == 'eleve' %}badge-orange{% elif ev.risk_level == 'moyen' %}badge-blue{% else %}badge-green{% endif %}">
+                {{ ev.get_risk_level_display }}
+              </span>
+              <span style="font-size:11px;color:var(--text-muted);margin-left:.5rem;">
+                Prob.={{ ev.risk_probability }} · Grav.={{ ev.risk_severity }}
+              </span>
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if ev.evidences_consulted.exists %}
+          <div style="margin-top:.75rem;font-size:12px;color:var(--text-muted);">
+            Preuves consultées :
+            {% for proof in ev.evidences_consulted.all %}
+            <span class="badge badge-gray" style="margin-left:4px;">{{ proof.get_evidence_type_display }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% empty %}
+        <div class="card" style="text-align:center;padding:2rem;color:var(--text-muted);">
+          Aucune évaluation enregistrée.
+        </div>
+        {% endfor %}
+
+      </div>
+
+      <!-- Sidebar -->
+      <div style="position:sticky;top:76px;">
+
+        {% if risk_data %}
+        <div class="card mb-2">
+          <h3 class="mb-3">⚠️ Tableau des Risques</h3>
+          <table class="risk-table">
+            <thead>
+              <tr><th>Contrôle</th><th>P</th><th>G</th><th>Niveau</th></tr>
+            </thead>
+            <tbody>
+              {% for rd in risk_data %}
+              <tr>
+                <td style="font-family:var(--font-mono);font-size:11px;">{{ rd.control }}</td>
+                <td>{{ rd.prob }}</td>
+                <td>{{ rd.severity }}</td>
+                <td>
+                  <span class="badge {% if rd.level == 'critique' %}badge-red{% elif rd.level == 'eleve' %}badge-orange{% elif rd.level == 'moyen' %}badge-blue{% else %}badge-green{% endif %}">
+                    {{ rd.level|default:"—" }}
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+
+        <div class="card">
+          <h3 class="mb-3"> Métadonnées</h3>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <tr>
+              <td style="padding:5px 0;color:var(--text-muted);">Référentiel</td>
+              <td style="text-align:right;color:var(--text-dim);">ISO 27001/27002</td>
+            </tr>
+            <tr>
+              <td style="padding:5px 0;color:var(--text-muted);">Entreprise</td>
+              <td style="text-align:right;color:var(--text-dim);">{{ session.scenario.company_name }}</td>
+            </tr>
+            <tr>
+              <td style="padding:5px 0;color:var(--text-muted);">Secteur</td>
+              <td style="text-align:right;color:var(--text-dim);">{{ session.scenario.get_sector_display }}</td>
+            </tr>
+            <tr>
+              <td style="padding:5px 0;color:var(--text-muted);">Début</td>
+              <td style="text-align:right;color:var(--text-dim);">{{ session.started_at|date:"d/m/Y" }}</td>
+            </tr>
+            {% if session.completed_at %}
+            <tr>
+              <td style="padding:5px 0;color:var(--text-muted);">Fin</td>
+              <td style="text-align:right;color:var(--text-dim);">{{ session.completed_at|date:"d/m/Y" }}</td>
+            </tr>
+            {% endif %}
+            <tr>
+              <td style="padding:5px 0;color:var(--text-muted);">Contrôles</td>
+              <td style="text-align:right;color:var(--text-dim);">{{ total }}</td>
+            </tr>
+            <tr>
+              <td style="padding:5px 0;color:var(--text-muted);">Auditeur</td>
+              <td style="text-align:right;color:var(--text-dim);">{{ session.user.username }}</td>
+            </tr>
+          </table>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

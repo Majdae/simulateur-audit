@@ -1,0 +1,38 @@
+{% extends 'audit_app/base.html' %}
+{% block title %}Inscription — Learn⇒Audit{% endblock %}
+{% block content %}
+<style>
+  .auth-wrap { min-height: calc(100vh - 56px); display: flex; align-items: center; justify-content: center; padding: 2rem; }
+  .auth-box { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2.5rem; width: 100%; max-width: 420px; }
+  .auth-logo { font-family: var(--font-head); font-size: 1.5rem; font-weight: 800; margin-bottom: 2rem; text-align: center; }
+  .auth-logo span { color: var(--accent2); }
+  .auth-footer { text-align: center; margin-top: 1.5rem; color: var(--text-muted); font-size: 13px; }
+  .auth-footer a { color: var(--accent2); text-decoration: none; }
+  .errorlist { list-style: none; color: var(--red); font-size: 12px; margin-top: 4px; }
+  .helptext { color: var(--text-muted); font-size: 11px; margin-top: 4px; }
+</style>
+<div class="auth-wrap">
+  <div class="auth-box">
+    <div class="auth-logo">Audit</div>
+    <h2>Créer un compte</h2>
+    <p style="color:var(--text-muted);font-size:13px;margin-bottom:2rem;">Rejoignez la plateforme d'audit ISO 2700x</p>
+    <form method="post">
+      {% csrf_token %}
+      {% for field in form %}
+      <div class="form-group">
+        <label class="form-label">{{ field.label }}</label>
+        <input type="{{ field.field.widget.input_type }}"
+               name="{{ field.html_name }}"
+               class="form-control"
+               placeholder="{{ field.label }}"
+               {% if field.field.required %}required{% endif %}>
+        {% if field.help_text %}<div class="helptext">{{ field.help_text }}</div>{% endif %}
+        {% if field.errors %}<ul class="errorlist">{% for e in field.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      {% endfor %}
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Créer mon compte</button>
+    </form>
+    <div class="auth-footer">Déjà inscrit ? <a href="{% url 'login' %}">Se connecter</a></div>
+  </div>
+</div>
+{% endblock %}

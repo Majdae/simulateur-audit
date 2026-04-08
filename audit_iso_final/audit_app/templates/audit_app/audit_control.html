@@ -1,0 +1,374 @@
+{% extends 'audit_app/base.html' %}
+{% block title %}{{ control.code }} — Audit{% endblock %}
+{% block content %}
+<style>
+  .control-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 1.2rem 0;
+  }
+  .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); margin-bottom: .5rem; }
+  .breadcrumb a { color: var(--text-muted); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--accent2); }
+  .audit-layout { display: grid; grid-template-columns: 1fr 380px; gap: 2rem; align-items: start; padding: 2rem 0; }
+  .evidence-btn {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    text-align: left;
+    cursor: pointer;
+    color: var(--text);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all .15s;
+    margin-bottom: 8px;
+    font-family: var(--font-body);
+  }
+  .evidence-btn:hover { border-color: var(--accent); background: rgba(37,99,235,.05); }
+  .evidence-btn.consulted { border-color: rgba(16,185,129,.3); background: rgba(16,185,129,.05); }
+  .evidence-btn .ev-icon { font-size: 1.2rem; flex-shrink: 0; }
+  .evidence-btn .ev-info { flex: 1; }
+  .evidence-btn .ev-title { font-weight: 600; font-size: 13px; }
+  .evidence-btn .ev-type { font-size: 11px; color: var(--text-muted); }
+  .evidence-panel {
+    display: none;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem;
+    margin-top: 1rem;
+    animation: slideDown .2s ease;
+  }
+  .evidence-panel.active { display: block; }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  .evidence-content {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-dim);
+    max-height: 350px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    margin-top: .75rem;
+  }
+  .step-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+  }
+  .step-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+  .step-dot.done { background: var(--green); }
+  .step-dot.current { background: var(--accent); }
+  .nav-btns { display: flex; gap: .5rem; }
+  .guidance-box {
+    background: rgba(37,99,235,.06);
+    border: 1px solid rgba(37,99,235,.15);
+    border-radius: 8px;
+    padding: 1rem;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+  .range-wrap { display: flex; align-items: center; gap: 1rem; }
+  .range-wrap input[type=range] { flex: 1; accent-color: var(--accent); }
+  .range-val { font-family: var(--font-mono); font-weight: 700; color: var(--accent2); width: 24px; text-align: center; }
+  .already-evaluated { background: rgba(16,185,129,.06); border: 1px solid rgba(16,185,129,.15); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; font-size: 13px; color: var(--green); }
+</style>
+
+<div class="control-header">
+  <div class="container">
+    <div class="breadcrumb">
+      <a href="{% url 'audit_overview' session.id %}">{{ session.scenario.company_name }}</a>
+      <span>›</span>
+      <span>{{ control.code }}</span>
+    </div>
+    <div class="flex-between">
+      <div class="flex-center gap-4">
+        <div>
+          <div class="flex-center gap-2 mb-1">
+            <span class="badge badge-blue mono">{{ control.code }}</span>
+            <span class="badge badge-gray">{{ control.get_category_display }}</span>
+            <span class="badge badge-purple">{{ control.get_norm_display }}</span>
+          </div>
+          <h2>{{ control.title }}</h2>
+        </div>
+      </div>
+      <div class="step-indicator">
+        Contrôle {{ current_idx }}/{{ total }}
+        &nbsp;
+        <div class="nav-btns">
+          {% if prev_sc_id %}
+          <a href="{% url 'audit_control' session.id prev_sc_id %}" class="btn btn-secondary btn-sm">← Précédent</a>
+          {% endif %}
+          {% if next_sc_id %}
+          <a href="{% url 'audit_control' session.id next_sc_id %}" class="btn btn-secondary btn-sm">Suivant →</a>
+          {% endif %}
+          <a href="{% url 'audit_overview' session.id %}" class="btn btn-secondary btn-sm">Vue d'ensemble</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page">
+  <div class="container">
+    <div class="audit-layout">
+
+      <!-- Left: Control info + Evidence -->
+      <div>
+        <!-- Control Description -->
+        <div class="card mb-4">
+          <h3 class="mb-2"> Description du Contrôle</h3>
+          <p style="font-size:14px;line-height:1.7;color:var(--text-dim);">{{ control.description }}</p>
+          <hr>
+          <h3 class="mb-2"> Objectif</h3>
+          <p style="font-size:13px;line-height:1.7;color:var(--text-dim);">{{ control.objective }}</p>
+          {% if control.guidance %}
+          <hr>
+          <h3 class="mb-2"> Conseils d'Audit</h3>
+          <div class="guidance-box">{{ control.guidance }}</div>
+          {% endif %}
+        </div>
+
+        <!-- Evidence Collection -->
+        <div class="card mb-4">
+          <h3 class="mb-1"> Collecte de Preuves</h3>
+          <p class="text-muted mb-3" style="font-size:12px;">Consultez les preuves disponibles avant d'évaluer le contrôle. Cochez celles que vous avez examinées.</p>
+
+          {% for ev in evidences %}
+          <div>
+            <button type="button" class="evidence-btn" data-ev-id="{{ ev.id }}" onclick="loadEvidence({{ ev.id }}, this)">
+              <span class="ev-icon">
+                {% if ev.evidence_type == 'document' %}
+                {% elif ev.evidence_type == 'config' %}
+                {% elif ev.evidence_type == 'log' %}
+                {% elif ev.evidence_type == 'interview' %}
+                {% elif ev.evidence_type == 'observation' %}
+                {% endif %}
+              </span>
+              <span class="ev-info">
+                <span class="ev-title">{{ ev.title }}</span>
+                <span class="ev-type">{{ ev.get_evidence_type_display }}</span>
+              </span>
+              <span id="ev-check-{{ ev.id }}" style="color:var(--green);display:none;">✓ Consulté</span>
+              <span style="color:var(--text-muted);font-size:12px;">▼</span>
+            </button>
+
+            <div id="ev-panel-{{ ev.id }}" class="evidence-panel">
+              <div class="flex-between mb-2">
+                <span class="badge badge-blue">{{ ev.get_evidence_type_display }}</span>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-dim);">
+                  <input type="checkbox" id="ev-consulted-{{ ev.id }}"
+                    name="evidence_consulted_{{ ev.id }}" onchange="markConsulted({{ ev.id }}, this)"
+                    style="accent-color:var(--green);"
+                    {% if evaluation and ev in evaluation.evidences_consulted.all %}checked{% endif %}>
+                  Marquer comme consulté
+                </label>
+              </div>
+              <div class="evidence-content" id="ev-content-{{ ev.id }}">
+                <span style="color:var(--text-muted)">Chargement...</span>
+              </div>
+            </div>
+          </div>
+          {% empty %}
+          <p class="text-muted">Aucune preuve disponible pour ce contrôle.</p>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Right: Evaluation Form -->
+      <div style="position:sticky;top:76px;">
+        {% if evaluation %}
+        <div class="already-evaluated">
+          ✓ Ce contrôle a déjà été évalué — vous pouvez modifier votre évaluation.
+        </div>
+        {% endif %}
+
+        <form method="post" action="{% url 'evaluate_control' session.id sc.id %}" id="eval-form">
+          {% csrf_token %}
+
+          <!-- Hidden consulted evidences -->
+          <div id="consulted-inputs"></div>
+
+          <div class="card">
+            <h3 class="mb-3">⚖️ Évaluation du Contrôle</h3>
+
+            <!-- Conformity -->
+            <div class="form-group">
+              <label class="form-label">Statut de Conformité *</label>
+              <div class="radio-group" id="conformity-group">
+                {% for val, label in conformity_choices %}
+                <label class="radio-option" id="opt-{{ val }}" onclick="selectConformity('{{ val }}')">
+                  <input type="radio" name="conformity" value="{{ val }}"
+                    {% if evaluation and evaluation.conformity == val %}checked{% endif %}
+                    required>
+                  <span>
+                    {% if val == 'conforme' %}✅{% elif val == 'non_conforme' %}❌{% elif val == 'partiel' %}⚠️{% else %}—{% endif %}
+                    {{ label }}
+                  </span>
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+
+            <!-- Justification -->
+            <div class="form-group">
+              <label class="form-label">Justification</label>
+              <textarea name="justification" class="form-control" rows="3"
+                placeholder="Expliquez votre évaluation en vous basant sur les preuves collectées...">{% if evaluation %}{{ evaluation.justification }}{% endif %}</textarea>
+            </div>
+
+            <!-- Risk (shown for non-compliant) -->
+            <div id="risk-section" style="display:{% if evaluation and evaluation.conformity in 'non_conforme partiel' %}block{% else %}none{% endif %};">
+              <hr>
+              <h3 class="mb-3" style="font-size:.9rem;color:var(--orange);"> Évaluation des Risques (ISO 27005)</h3>
+
+              <div class="form-group">
+                <label class="form-label">Niveau de Risque</label>
+                <select name="risk_level" class="form-control">
+                  <option value="">-- Sélectionner --</option>
+                  {% for val, label in risk_choices %}
+                  <option value="{{ val }}" {% if evaluation and evaluation.risk_level == val %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Probabilité (1-5)</label>
+                <div class="range-wrap">
+                  <input type="range" name="risk_probability" min="1" max="5"
+                    value="{% if evaluation %}{{ evaluation.risk_probability }}{% else %}2{% endif %}"
+                    oninput="document.getElementById('prob-val').textContent=this.value">
+                  <span class="range-val" id="prob-val">{% if evaluation %}{{ evaluation.risk_probability }}{% else %}2{% endif %}</span>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Gravité (1-5)</label>
+                <div class="range-wrap">
+                  <input type="range" name="risk_severity" min="1" max="5"
+                    value="{% if evaluation %}{{ evaluation.risk_severity }}{% else %}2{% endif %}"
+                    oninput="document.getElementById('sev-val').textContent=this.value">
+                  <span class="range-val" id="sev-val">{% if evaluation %}{{ evaluation.risk_severity }}{% else %}2{% endif %}</span>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Recommandation de Traitement</label>
+                <textarea name="recommendation" class="form-control" rows="3"
+                  placeholder="Proposez une mesure corrective ou de mitigation...">{% if evaluation %}{{ evaluation.recommendation }}{% endif %}</textarea>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:.5rem;">
+              Enregistrer et continuer
+            </button>
+          </div>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block extra_js %}
+<script>
+// Evidence data cache
+const evCache = {};
+const consultedIds = new Set([
+  {% if evaluation %}
+    {% for ev in evaluation.evidences_consulted.all %}{{ ev.id }},{% endfor %}
+  {% endif %}
+]);
+
+// Initialize consulted checkboxes
+document.addEventListener('DOMContentLoaded', () => {
+  consultedIds.forEach(id => {
+    const chk = document.getElementById(`ev-consulted-${id}`);
+    if (chk) { chk.checked = true; markConsulted(id, chk); }
+  });
+  updateConsultedInputs();
+
+  // Restore conformity selection
+  const checked = document.querySelector('input[name=conformity]:checked');
+  if (checked) selectConformity(checked.value);
+});
+
+function loadEvidence(evId, btn) {
+  const panel = document.getElementById(`ev-panel-${evId}`);
+  const contentEl = document.getElementById(`ev-content-${evId}`);
+
+  if (panel.classList.contains('active')) {
+    panel.classList.remove('active');
+    return;
+  }
+  panel.classList.add('active');
+
+  if (evCache[evId]) {
+    contentEl.textContent = evCache[evId];
+    return;
+  }
+
+  fetch(`{% url 'get_evidence' session.id sc.id 0 %}`.replace('/0/', `/${evId}/`))
+    .then(r => r.json())
+    .then(data => {
+      evCache[evId] = data.content;
+      contentEl.textContent = data.content;
+    });
+}
+
+function markConsulted(evId, checkbox) {
+  const btn = document.querySelector(`[data-ev-id="${evId}"]`);
+  const check = document.getElementById(`ev-check-${evId}`);
+  if (checkbox.checked) {
+    consultedIds.add(evId);
+    btn && btn.classList.add('consulted');
+    check && (check.style.display = 'inline');
+  } else {
+    consultedIds.delete(evId);
+    btn && btn.classList.remove('consulted');
+    check && (check.style.display = 'none');
+  }
+  updateConsultedInputs();
+}
+
+function updateConsultedInputs() {
+  const container = document.getElementById('consulted-inputs');
+  container.innerHTML = '';
+  consultedIds.forEach(id => {
+    const inp = document.createElement('input');
+    inp.type = 'hidden';
+    inp.name = 'evidences_consulted';
+    inp.value = id;
+    container.appendChild(inp);
+  });
+}
+
+function selectConformity(val) {
+  document.querySelectorAll('.radio-option').forEach(el => {
+    el.className = 'radio-option';
+  });
+  const opt = document.getElementById(`opt-${val}`);
+  if (opt) opt.classList.add(`selected-${val}`);
+
+  const riskSection = document.getElementById('risk-section');
+  if (val === 'non_conforme' || val === 'partiel') {
+    riskSection.style.display = 'block';
+  } else {
+    riskSection.style.display = 'none';
+  }
+}
+</script>
+{% endblock %}

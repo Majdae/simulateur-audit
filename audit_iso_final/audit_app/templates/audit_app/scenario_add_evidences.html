@@ -1,0 +1,202 @@
+{% extends 'audit_app/base.html' %}
+{% block title %}Preuves – {{ sc.control.code }} — {{ scenario.company_name }}{% endblock %}
+{% block content %}
+<style>
+  .page-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.5rem 0; }
+  .steps-bar { display:flex; max-width:600px; margin:1.5rem auto; }
+  .step { flex:1; text-align:center; padding:.7rem .4rem; font-size:12px; font-weight:600; color:var(--text-muted); background:var(--surface2); border:1px solid var(--border); }
+  .step:first-child { border-radius:8px 0 0 8px; }
+  .step:last-child { border-radius:0 8px 8px 0; }
+  .step.done { background:rgba(16,185,129,.08); color:var(--green); border-color:rgba(16,185,129,.2); }
+  .step.active { background:rgba(37,99,235,.12); color:var(--accent2); border-color:rgba(37,99,235,.3); }
+  .step-num { display:block; font-size:1rem; margin-bottom:2px; }
+  .layout { display:grid; grid-template-columns:1fr 300px; gap:2rem; align-items:start; padding:2rem 0; }
+  .ctrl-nav { display:flex; gap:.4rem; flex-wrap:wrap; margin-bottom:1.5rem; }
+  .ctrl-pill { padding:4px 10px; border-radius:6px; font-size:11px; font-family:var(--font-mono); border:1px solid var(--border); color:var(--text-muted); text-decoration:none; transition:all .12s; }
+  .ctrl-pill:hover { border-color:var(--accent); color:var(--accent2); }
+  .ctrl-pill.current { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .ctrl-pill.has-ev { border-color:rgba(16,185,129,.35); color:var(--green); }
+  .ctrl-pill.has-ev.current { background:var(--green); border-color:var(--green); color:#fff; }
+  .ev-card { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:1rem; margin-bottom:.6rem; }
+  .ev-head { display:flex; align-items:center; gap:8px; margin-bottom:.5rem; }
+  .ev-preview { font-family:var(--font-mono); font-size:11px; color:var(--text-muted); background:var(--bg); border-radius:6px; padding:.6rem; max-height:80px; overflow:hidden; white-space:pre-wrap; position:relative; }
+  .ev-preview::after { content:''; position:absolute; bottom:0; left:0; right:0; height:30px; background:linear-gradient(transparent, var(--bg)); }
+  .hint-group { display:flex; gap:.5rem; }
+  .hint-radio { display:none; }
+  .hint-lbl { padding:5px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid var(--border); color:var(--text-muted); transition:all .12s; }
+  .hint-radio[value=conforme]:checked ~ .hint-lbl-conforme,
+  .hint-lbl-conforme:has(~ .hint-radio[value=conforme]:checked) { background:rgba(16,185,129,.15); color:var(--green); border-color:var(--green); }
+  /* simpler approach: */
+  #hint-conforme:checked + label { background:rgba(16,185,129,.15); color:var(--green); border-color:var(--green); }
+  #hint-non_conforme:checked + label { background:rgba(239,68,68,.15); color:var(--red); border-color:var(--red); }
+  #hint-partiel:checked + label { background:rgba(245,158,11,.15); color:var(--orange); border-color:var(--orange); }
+</style>
+
+<div class="page-header">
+  <div class="container">
+    <div class="flex-between">
+      <div>
+        <div class="flex-center gap-2 mb-1">
+          <span style="font-size:1.8rem">{{ scenario.icon }}</span>
+          <span class="badge badge-blue mono">{{ sc.control.code }}</span>
+          <span class="badge badge-gray">{{ sc.control.get_category_display }}</span>
+        </div>
+        <h1 style="font-size:1.3rem;">{{ sc.control.title }}</h1>
+        <p class="text-muted" style="font-size:13px;">{{ scenario.company_name }} · Contrôle {{ current_idx }}/{{ all_scs|length }}</p>
+      </div>
+      <div class="flex-center gap-2">
+        <a href="{% url 'scenario_add_controls' scenario.id %}" class="btn btn-secondary btn-sm">← Contrôles</a>
+        <a href="{% url 'scenario_list' %}" class="btn btn-secondary btn-sm">← Scénarios</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="steps-bar">
+    <div class="step done"><span class="step-num">✓</span>Informations</div>
+    <div class="step done"><span class="step-num">✓</span>Contrôles ISO</div>
+    <div class="step active"><span class="step-num">③</span>Preuves</div>
+  </div>
+
+  <!-- Navigation pills entre contrôles -->
+  <div class="ctrl-nav">
+    {% for s in all_scs %}
+    <a href="{% url 'scenario_add_evidences' scenario.id s.id %}"
+       class="ctrl-pill {% if s.id == sc.id %}current{% elif s.evidences.count > 0 %}has-ev{% endif %}"
+       title="{{ s.control.title }}">
+      {{ s.control.code }}{% if s.evidences.count > 0 %} ·{{ s.evidences.count }}{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="layout">
+
+    <!-- Formulaire d'ajout de preuve -->
+    <div>
+      <!-- Info contrôle -->
+      <div class="card mb-4" style="border-color:rgba(37,99,235,.2);background:rgba(37,99,235,.04);">
+        <p style="font-size:13px;color:var(--text-dim);line-height:1.6;margin-bottom:.5rem;">{{ sc.control.description }}</p>
+        {% if sc.control.guidance %}
+        <p style="font-size:12px;color:var(--text-muted);"> <strong>Conseil :</strong> {{ sc.control.guidance }}</p>
+        {% endif %}
+      </div>
+
+      <div class="card">
+        <h3 class="mb-3">➕ Ajouter une Preuve</h3>
+
+        {% if errors %}
+          {% for err in errors %}<div class="alert alert-error mb-1">{{ err }}</div>{% endfor %}
+        {% endif %}
+
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="form-group">
+            <label class="form-label">Titre de la preuve *</label>
+            <input type="text" name="title" class="form-control" required
+              placeholder="ex: Politique de mots de passe v2.1, Extrait log AD…"
+              value="{% if form_data %}{{ form_data.title }}{% endif %}">
+          </div>
+
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Type de preuve *</label>
+              <select name="evidence_type" class="form-control" required>
+                <option value="">-- Choisir --</option>
+                {% for val, label in evidence_types %}
+                <option value="{{ val }}" {% if form_data and form_data.evidence_type == val %}selected{% endif %}>
+                  {% if val == 'document' %}{% elif val == 'config' %}⚙️{% elif val == 'log' %}{% elif val == 'interview' %}{% else %}{% endif %}
+                  {{ label }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Résultat correct *</label>
+              <div class="hint-group">
+                {% for val, label in hint_choices %}
+                <input type="radio" name="hint" id="hint-{{ val }}" value="{{ val }}" class="hint-radio"
+                  {% if form_data and form_data.hint == val %}checked
+                  {% elif not form_data and val == 'conforme' %}checked{% endif %} required>
+                <label for="hint-{{ val }}" class="hint-lbl">
+                  {% if val == 'conforme' %}✓ Conforme{% elif val == 'non_conforme' %}✗ NC{% else %}~ Partiel{% endif %}
+                </label>
+                {% endfor %}
+              </div>
+              <p style="font-size:10px;color:var(--text-muted);margin-top:4px;">Utilisé pour le scoring automatique</p>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Contenu de la preuve *</label>
+            <textarea name="content" class="form-control" rows="10" required
+              placeholder="Contenu réaliste : texte d'une politique, extrait de log, configuration système, compte-rendu d'entretien…&#10;&#10;Si le résultat est Non conforme, incluez des anomalies visibles.&#10;Si Conforme, montrez une bonne pratique documentée.">{% if form_data %}{{ form_data.content }}{% endif %}</textarea>
+          </div>
+
+          <div class="flex-between">
+            <div class="flex-center gap-2">
+              {% if prev_sc %}
+              <a href="{% url 'scenario_add_evidences' scenario.id prev_sc.id %}" class="btn btn-secondary btn-sm">← {{ prev_sc.control.code }}</a>
+              {% endif %}
+              {% if next_sc %}
+              <a href="{% url 'scenario_add_evidences' scenario.id next_sc.id %}" class="btn btn-secondary btn-sm">{{ next_sc.control.code }} →</a>
+              {% endif %}
+            </div>
+            <button type="submit" class="btn btn-primary"> Ajouter</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Preuves existantes -->
+    <div style="position:sticky;top:76px;">
+      <div class="card mb-2">
+        <div class="flex-between mb-3">
+          <h3>Preuves ajoutées</h3>
+          <span class="badge {% if evidences %}badge-green{% else %}badge-orange{% endif %}">{{ evidences|length }}</span>
+        </div>
+
+        {% if evidences %}
+          {% for ev in evidences %}
+          <div class="ev-card">
+            <div class="ev-head">
+              <span style="font-size:1.1rem;">
+                {% if ev.evidence_type == 'document' %}📄{% elif ev.evidence_type == 'config' %}⚙️{% elif ev.evidence_type == 'log' %}📊{% elif ev.evidence_type == 'interview' %}💬{% else %}👁️{% endif %}
+              </span>
+              <span style="font-size:12px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ ev.title }}</span>
+              <span class="badge {% if ev.hint == 'conforme' %}badge-green{% elif ev.hint == 'non_conforme' %}badge-red{% else %}badge-orange{% endif %}" style="font-size:10px;flex-shrink:0;">
+                {% if ev.hint == 'conforme' %}✓{% elif ev.hint == 'non_conforme' %}✗{% else %}~{% endif %}
+              </span>
+            </div>
+            <div class="ev-preview">{{ ev.content }}</div>
+            <div class="flex-between mt-2">
+              <span style="font-size:10px;color:var(--text-muted);">{{ ev.get_evidence_type_display }}</span>
+              <form method="post" action="{% url 'evidence_delete' scenario.id sc.id ev.id %}" style="display:inline;" onsubmit="return confirm('Supprimer cette preuve ?')">
+                {% csrf_token %}
+                <button type="submit" style="background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2);border-radius:5px;cursor:pointer;padding:2px 8px;font-size:11px;">✕</button>
+              </form>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:13px;">
+            <div style="font-size:2rem;margin-bottom:.5rem;"></div>
+            Aucune preuve encore.<br>
+            <span style="font-size:11px;">Ajoutez au moins 1 preuve.</span>
+          </div>
+        {% endif %}
+      </div>
+
+      {% if evidences %}
+      <div class="card" style="padding:.75rem 1rem;text-align:center;">
+        <a href="{% url 'scenario_list' %}" class="btn btn-green" style="width:100%;justify-content:center;">
+          Terminer la configuration
+        </a>
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}

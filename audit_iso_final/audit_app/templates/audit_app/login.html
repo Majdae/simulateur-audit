@@ -1,0 +1,60 @@
+{% extends 'audit_app/base.html' %}
+{% block title %}Connexion — Learn⇒Audit{% endblock %}
+{% block content %}
+<style>
+  .auth-wrap {
+    min-height: calc(100vh - 56px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+  }
+  .auth-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2.5rem;
+    width: 100%;
+    max-width: 420px;
+  }
+  .auth-logo {
+    font-family: var(--font-head);
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin-bottom: 2rem;
+    text-align: center;
+  }
+  .auth-logo span { color: var(--accent2); }
+  .auth-box h2 { margin-bottom: .4rem; }
+  .auth-box p { color: var(--text-muted); margin-bottom: 2rem; font-size: 13px; }
+  .auth-footer { text-align: center; margin-top: 1.5rem; color: var(--text-muted); font-size: 13px; }
+  .auth-footer a { color: var(--accent2); text-decoration: none; }
+  .errorlist { list-style: none; color: var(--red); font-size: 12px; margin-top: 4px; }
+</style>
+
+<div class="auth-wrap">
+  <div class="auth-box">
+    <div class="auth-logo">Audit</div>
+    <h2>Connexion</h2>
+    <p>Accédez à vos sessions d'audit</p>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-group">
+        <label class="form-label">Nom d'utilisateur</label>
+        <input type="text" name="username" class="form-control" placeholder="Votre identifiant" autofocus required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mot de passe</label>
+        <input type="password" name="password" class="form-control" placeholder="••••••••" required>
+      </div>
+      {% if form.errors %}
+      <div class="alert alert-error mb-2">Identifiants incorrects. Vérifiez votre nom d'utilisateur et mot de passe.</div>
+      {% endif %}
+      <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center;">Se connecter</button>
+    </form>
+    <div class="auth-footer">
+      Pas encore de compte ? <a href="{% url 'register' %}">S'inscrire</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,151 @@
+{% extends 'audit_app/base.html' %}
+{% block title %}Dashboard — Learn⇒Audit{% endblock %}
+{% block content %}
+<style>
+  .dashboard-header {
+    background: linear-gradient(135deg, var(--surface) 0%, var(--surface2) 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 2rem 0;
+  }
+  .session-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem;
+    transition: border-color .15s;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .session-card:hover { border-color: var(--accent); }
+  .session-icon { font-size: 2rem; flex-shrink: 0; }
+  .session-info { flex: 1; min-width: 0; }
+  .session-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .session-meta { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+  .session-progress { margin-top: 8px; }
+  .empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: var(--text-muted);
+  }
+  .empty-state .icon { font-size: 3rem; margin-bottom: 1rem; }
+</style>
+
+<div class="dashboard-header">
+  <div class="container">
+    <div class="flex-between">
+      <div>
+        <h1>Bonjour, {{ user.username }} </h1>
+        <p class="text-muted mt-1">Votre espace d'audit ISO 2700x</p>
+      </div>
+      <a href="{% url 'scenario_list' %}" class="btn btn-primary">+ Nouvel Audit</a>
+    </div>
+  </div>
+</div>
+
+<div class="page">
+  <div class="container">
+
+    <!-- Stats -->
+    <div class="grid-4 mb-4">
+      <div class="stat-box">
+        <div class="stat-value">{{ total_audits }}</div>
+        <div class="stat-label">Audits réalisés</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" style="color:var(--orange)">{{ active_count }}</div>
+        <div class="stat-label">En cours</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" style="color:var(--green)">{{ completed_count }}</div>
+        <div class="stat-label">Terminés</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" style="color:var(--accent2)">{{ avg_score }}%</div>
+        <div class="stat-label">Score moyen</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+
+      <!-- Active Sessions -->
+      <div>
+        <div class="flex-between mb-2">
+          <h2>Audits en cours</h2>
+          <span class="badge badge-orange">{{ active_sessions.count }}</span>
+        </div>
+        {% if active_sessions %}
+          {% for session in active_sessions %}
+          <div class="session-card mb-2">
+            <div class="session-icon">{{ session.scenario.icon }}</div>
+            <div class="session-info">
+              <div class="session-name">{{ session.scenario.company_name }}</div>
+              <div class="session-meta">{{ session.scenario.get_sector_display }} · Démarré {{ session.started_at|date:"d/m/Y" }}</div>
+              <div class="session-progress mt-1">
+                <div class="flex-between mb-1">
+                  <span style="font-size:11px;color:var(--text-muted)">Progression</span>
+                  <span style="font-size:11px;color:var(--accent2)">{{ session.progress_percent }}%</span>
+                </div>
+                <div class="progress-bar">
+                  <div class="progress-fill" style="width:{{ session.progress_percent }}%"></div>
+                </div>
+              </div>
+            </div>
+            <a href="{% url 'audit_overview' session.id %}" class="btn btn-primary btn-sm">Continuer</a>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state card">
+           
+            <p>Aucun audit en cours.<br>
+            <a href="{% url 'scenario_list' %}" style="color:var(--accent2)">Choisir un scénario →</a></p>
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Completed -->
+      <div>
+        <div class="flex-between mb-2">
+          <h2>Audits terminés</h2>
+          <span class="badge badge-green">{{ completed_count }}</span>
+        </div>
+        {% if completed_sessions %}
+          {% for session in completed_sessions %}
+          <div class="session-card mb-2">
+            <div class="session-icon">{{ session.scenario.icon }}</div>
+            <div class="session-info">
+              <div class="session-name">{{ session.scenario.company_name }}</div>
+              <div class="session-meta">{{ session.scenario.get_sector_display }} · {{ session.completed_at|date:"d/m/Y" }}</div>
+              <div class="flex-center gap-2 mt-1">
+                <span class="badge {% if session.score_percent >= 70 %}badge-green{% elif session.score_percent >= 40 %}badge-orange{% else %}badge-red{% endif %}">
+                  {{ session.score }}/{{ session.max_score }} pts ({{ session.score_percent }}%)
+                </span>
+              </div>
+            </div>
+            <a href="{% url 'audit_report' session.id %}" class="btn btn-secondary btn-sm">Rapport</a>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state card">
+            
+            <p>Aucun audit terminé pour l'instant.</p>
+          </div>
+        {% endif %}
+      </div>
+
+    </div>
+
+    <!-- Quick Start -->
+    <div class="card mt-4" style="background: linear-gradient(135deg, rgba(37,99,235,.08), rgba(56,189,248,.05)); border-color: rgba(37,99,235,.2);">
+      <div class="flex-between">
+        <div>
+          <h3> {{ scenarios_count }} scénarios disponibles</h3>
+          <p class="text-muted mt-1" style="font-size:13px;">Hôpital · E-Commerce · Banque · Entreprise de Services · Industrie</p>
+        </div>
+        <a href="{% url 'scenario_list' %}" class="btn btn-primary">Voir tous les scénarios</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

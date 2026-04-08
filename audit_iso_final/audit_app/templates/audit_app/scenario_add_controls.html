@@ -1,0 +1,194 @@
+{% extends 'audit_app/base.html' %}
+{% block title %}Contrôles ISO — {{ scenario.company_name }}{% endblock %}
+{% block content %}
+<style>
+  .page-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.5rem 0; }
+  .steps-bar { display: flex; max-width: 600px; margin: 1.5rem auto; }
+  .step { flex:1; text-align:center; padding:.7rem .4rem; font-size:12px; font-weight:600; color:var(--text-muted); background:var(--surface2); border:1px solid var(--border); }
+  .step:first-child { border-radius:8px 0 0 8px; }
+  .step:last-child { border-radius:0 8px 8px 0; }
+  .step.done { background:rgba(16,185,129,.08); color:var(--green); border-color:rgba(16,185,129,.2); }
+  .step.active { background:rgba(37,99,235,.12); color:var(--accent2); border-color:rgba(37,99,235,.3); }
+  .step-num { display:block; font-size:1rem; margin-bottom:2px; }
+  .layout { display:grid; grid-template-columns:1fr 320px; gap:2rem; align-items:start; padding:2rem 0; }
+  .search-box { position:relative; margin-bottom:.75rem; }
+  .search-box input { padding-left:36px; }
+  .search-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); }
+  .cat-header { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); padding:6px 0; border-bottom:1px solid var(--border); margin-bottom:.5rem; cursor:pointer; display:flex; align-items:center; gap:6px; }
+  .cat-header:hover { color:var(--text-dim); }
+  .ctrl-item { display:flex; align-items:center; gap:10px; padding:7px 8px; border-radius:7px; cursor:pointer; transition:background .1s; }
+  .ctrl-item:hover { background:var(--surface2); }
+  .ctrl-item.already { opacity:.45; cursor:not-allowed; }
+  .ctrl-item input[type=checkbox] { accent-color:var(--accent); flex-shrink:0; }
+  .ctrl-code { font-family:var(--font-mono); font-size:11px; color:var(--accent2); width:58px; flex-shrink:0; }
+  .ctrl-title { font-size:12px; color:var(--text-dim); flex:1; }
+  .pill { padding:3px 12px; border-radius:99px; font-size:11px; font-weight:600; cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--text-muted); transition:all .12s; font-family:var(--font-body); }
+  .pill:hover { border-color:var(--accent); color:var(--accent2); }
+  .pill.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .attached-row { display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; margin-bottom:6px; }
+  .att-num { font-family:var(--font-mono); font-size:11px; color:var(--text-muted); width:18px; }
+  .att-code { font-family:var(--font-mono); font-size:11px; color:var(--accent2); width:58px; }
+  .att-title { font-size:12px; flex:1; color:var(--text-dim); min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hidden { display:none !important; }
+</style>
+
+<div class="page-header">
+  <div class="container">
+    <div class="flex-between">
+      <div>
+        <div class="flex-center gap-2 mb-1">
+        
+          <span class="badge badge-blue">{{ scenario.get_sector_display }}</span>
+        </div>
+        <h1 style="font-size:1.4rem;">{{ scenario.company_name }}</h1>
+        <p class="text-muted" style="font-size:13px;">Étape 2 — Contrôles ISO à auditer dans ce scénario</p>
+      </div>
+      <div class="flex-center gap-2">
+        <a href="{% url 'scenario_edit' scenario.id %}" class="btn btn-secondary btn-sm"> Modifier</a>
+        <a href="{% url 'scenario_list' %}" class="btn btn-secondary btn-sm">← Scénarios</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="steps-bar">
+    <div class="step done"><span class="step-num">✓</span>Informations</div>
+    <div class="step active"><span class="step-num">②</span>Contrôles ISO</div>
+    <div class="step"><span class="step-num">③</span>Preuves</div>
+  </div>
+
+  <div class="layout">
+
+    <!-- Catalog -->
+    <div>
+      <div class="card">
+        <h3 class="mb-3"> Catalogue des Contrôles ISO</h3>
+        <div class="search-box">
+          <span class="search-icon"></span>
+          <input type="text" id="ctrl-search" class="form-control" placeholder="Rechercher par code ou titre…" oninput="filterControls()">
+        </div>
+        <div class="flex-center gap-2 mb-3" style="flex-wrap:wrap;">
+          <button class="pill active" onclick="filterNorm('',this)">Tous</button>
+          <button class="pill" onclick="filterNorm('27001',this)">ISO 27001</button>
+          <button class="pill" onclick="filterNorm('27002',this)">ISO 27002</button>
+          <button class="pill" onclick="filterNorm('27005',this)">ISO 27005</button>
+        </div>
+
+        <form method="post" id="add-form">
+          {% csrf_token %}
+          <div id="catalog">
+            {% for category, controls in grouped_controls.items %}
+            <div class="cat-group mb-2" data-cat="{{ category }}">
+              <div class="cat-header" onclick="toggleCat(this)">
+                <span class="arr">▼</span> {{ category }}
+                <span style="margin-left:auto;font-size:10px;">{{ controls|length }}</span>
+              </div>
+              <div class="cat-items">
+                {% for ctrl in controls %}
+                <label class="ctrl-item {% if ctrl.id in attached_ids %}already{% endif %}"
+                  data-code="{{ ctrl.code }}" data-title="{{ ctrl.title|lower }}" data-norm="{{ ctrl.norm }}">
+                  <input type="checkbox" name="control_ids" value="{{ ctrl.id }}"
+                    {% if ctrl.id in attached_ids %}disabled checked{% endif %}>
+                  <span class="ctrl-code">{{ ctrl.code }}</span>
+                  <span class="ctrl-title">{{ ctrl.title }}</span>
+                  {% if ctrl.id in attached_ids %}<span style="font-size:10px;color:var(--green);">✓</span>{% endif %}
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <div style="margin-top:1.2rem;padding-top:1rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+            <span id="sel-count" style="font-size:13px;color:var(--text-muted);">0 sélectionné(s)</span>
+            <button type="submit" class="btn btn-primary" id="add-btn" disabled> Ajouter</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Attached -->
+    <div style="position:sticky;top:76px;">
+      <div class="card mb-2">
+        <div class="flex-between mb-3">
+          <h3>Contrôles du scénario</h3>
+          <span class="badge badge-blue">{{ attached|length }}</span>
+        </div>
+        {% if attached %}
+          {% for sc in attached %}
+          <div class="attached-row">
+            <span class="att-num">{{ forloop.counter }}</span>
+            <span class="att-code">{{ sc.control.code }}</span>
+            <span class="att-title" title="{{ sc.control.title }}">{{ sc.control.title }}</span>
+            <a href="{% url 'scenario_add_evidences' scenario.id sc.id %}" class="btn btn-secondary btn-sm" title="Preuves" style="flex-shrink:0;">
+              📄{{ sc.evidences.count }}
+            </a>
+            <form method="post" action="{% url 'scenario_control_delete' scenario.id sc.id %}" style="display:inline;" onsubmit="return confirm('Retirer ce contrôle ?')">
+              {% csrf_token %}
+              <button type="submit" style="background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2);border-radius:6px;cursor:pointer;padding:3px 7px;font-size:12px;">✕</button>
+            </form>
+          </div>
+          {% endfor %}
+          <hr>
+          <p style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:.75rem;">Cliquez sur 📄 pour ajouter des preuves à chaque contrôle</p>
+          {% with first_sc=attached.first %}
+          <a href="{% url 'scenario_add_evidences' scenario.id first_sc.id %}" class="btn btn-primary" style="width:100%;justify-content:center;">
+            Gérer les preuves →
+          </a>
+          {% endwith %}
+        {% else %}
+          <div style="text-align:center;padding:2rem;color:var(--text-muted);font-size:13px;">
+            <div style="font-size:2rem;margin-bottom:.5rem;"></div>
+            Aucun contrôle ajouté.<br>
+            <span style="font-size:11px;">Cochez des contrôles dans le catalogue.</span>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="card" style="padding:.75rem 1rem;">
+        <div class="flex-between" style="font-size:12px;">
+          <span style="color:var(--text-muted);">Score max potentiel</span>
+          <span style="color:var(--accent2);font-weight:700;">{{ attached|length }}0 pts</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+let activeNorm = '';
+function filterControls() {
+  const q = document.getElementById('ctrl-search').value.toLowerCase();
+  document.querySelectorAll('.ctrl-item').forEach(item => {
+    const match = (!q || item.dataset.code.toLowerCase().includes(q) || item.dataset.title.includes(q))
+                && (!activeNorm || item.dataset.norm === activeNorm);
+    item.classList.toggle('hidden', !match);
+  });
+  document.querySelectorAll('.cat-group').forEach(g => {
+    g.style.display = g.querySelectorAll('.ctrl-item:not(.hidden)').length ? '' : 'none';
+  });
+}
+function filterNorm(norm, btn) {
+  activeNorm = norm;
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  filterControls();
+}
+function toggleCat(header) {
+  const items = header.nextElementSibling;
+  const arr = header.querySelector('.arr');
+  const collapsed = items.style.display === 'none';
+  items.style.display = collapsed ? '' : 'none';
+  arr.textContent = collapsed ? '▼' : '▶';
+}
+document.addEventListener('change', e => {
+  if (e.target.name === 'control_ids' && !e.target.disabled) {
+    const n = document.querySelectorAll('input[name=control_ids]:checked:not(:disabled)').length;
+    document.getElementById('sel-count').textContent = `${n} sélectionné(s)`;
+    document.getElementById('add-btn').disabled = n === 0;
+  }
+});
+</script>
+{% endblock %}

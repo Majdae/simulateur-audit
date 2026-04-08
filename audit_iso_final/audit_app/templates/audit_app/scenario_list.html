@@ -1,0 +1,138 @@
+{% extends 'audit_app/base.html' %}
+{% block title %}Scénarios — Learn⇒Audit{% endblock %}
+{% block content %}
+<style>
+  .page-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 2rem 0; }
+  .scenario-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    transition: border-color .2s, transform .2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .scenario-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    opacity: 0;
+    transition: opacity .2s;
+  }
+  .scenario-card:hover { border-color: rgba(37,99,235,.4); transform: translateY(-2px); }
+  .scenario-card:hover::before { opacity: 1; }
+  .scenario-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+  .scenario-title { font-family: var(--font-head); font-weight: 700; font-size: 1rem; margin-bottom: .5rem; }
+  .scenario-desc { color: var(--text-muted); font-size: 13px; line-height: 1.5; flex: 1; }
+  .scenario-meta { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+  .filter-bar { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+  .filter-btn {
+    padding: 5px 14px;
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all .15s;
+  }
+  .filter-btn:hover { border-color: var(--accent); color: var(--accent2); }
+  .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .diff-star { color: var(--orange); }
+  .already-started { position: absolute; top: 12px; right: 12px; }
+</style>
+
+<div class="page-header">
+  <div class="container">
+    <div class="flex-between"><div><h1>Scénarios d'Audit</h1></div><a href="{% url 'scenario_create' %}" class="btn btn-primary">Créer un scénario</a></div>
+    <p class="text-muted mt-1">Sélectionnez une entreprise fictive à auditer selon la norme ISO 2700x</p>
+  </div>
+</div>
+
+<div class="page">
+  <div class="container">
+
+    <!-- Filters -->
+    <div class="filter-bar">
+      <a href="{% url 'scenario_list' %}" class="filter-btn {% if not sector_filter and not difficulty_filter %}active{% endif %}">Tous</a>
+      {% for val, label in sector_choices %}
+      <a href="?sector={{ val }}" class="filter-btn {% if sector_filter == val %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <div class="filter-bar">
+      <span style="color:var(--text-muted);font-size:12px;padding:5px 0;">Difficulté :</span>
+      {% for val, label in difficulty_choices %}
+      <a href="?difficulty={{ val }}" class="filter-btn {% if difficulty_filter == val %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </div>
+
+    <!-- Scenarios Grid -->
+    <div class="grid-3">
+      {% for scenario in scenarios %}
+      <div class="scenario-card">
+        {% for sid, sess in user_sessions.items %}
+          {% if sess.scenario_id == scenario.id %}
+          <div class="already-started">
+            {% if sess.status == 'termine' %}
+            <span class="badge badge-green">✓ Terminé</span>
+            {% else %}
+            <span class="badge badge-orange">En cours</span>
+            {% endif %}
+          </div>
+          {% endif %}
+        {% endfor %}
+
+        <div class="scenario-icon">{{ scenario.icon }}</div>
+        <div class="scenario-title">{{ scenario.company_name }}</div>
+        <div>
+          <span class="badge badge-blue mb-1">{{ scenario.get_sector_display }}</span>
+          <span class="badge {% if scenario.difficulty == 'debutant' %}badge-green{% elif scenario.difficulty == 'intermediaire' %}badge-orange{% else %}badge-red{% endif %} mb-1">
+            {{ scenario.get_difficulty_display }}
+          </span>
+        </div>
+        <p class="scenario-desc mt-2">{{ scenario.description }}</p>
+        <div class="scenario-meta">
+          <div class="flex-between mb-2">
+            <span style="font-size:12px;color:var(--text-muted)">👥 {{ scenario.company_size }}</span>
+            <span style="font-size:12px;color:var(--text-muted)">{{ scenario.scenario_controls.count }} contrôles</span>
+          </div>
+          {% if scenario.id in user_sessions %}
+            {% for sid, sess in user_sessions.items %}
+            {% if sess.scenario_id == scenario.id %}
+            <a href="{% url 'audit_overview' sess.id %}" class="btn btn-secondary" style="width:100%;justify-content:center;">
+              Reprendre l'audit →
+            </a>
+            {% endif %}
+          {% endfor %}
+          {% else %}
+          <a href="{% url 'start_audit' scenario.id %}" class="btn btn-primary" style="width:100%;justify-content:center;">
+            Démarrer l'audit →
+          </a>
+          {% endif %}
+          <!-- Manage buttons -->
+          <div style="display:flex;gap:6px;margin-top:8px;">
+            <a href="{% url 'scenario_add_controls' scenario.id %}" class="btn btn-secondary btn-sm" style="flex:1;justify-content:center;" title="Gérer les contrôles">⚙️ Gérer</a>
+            <a href="{% url 'scenario_edit' scenario.id %}" class="btn btn-secondary btn-sm" title="Modifier">✏️</a>
+            <a href="{% url 'scenario_delete' scenario.id %}" class="btn btn-sm" style="background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2);" title="Supprimer">🗑️</a>
+          </div>
+        </div>
+      </div>
+      {% empty %}
+      <div style="grid-column:1/-1;">
+        <div class="card" style="text-align:center;padding:3rem;">
+          <p class="text-muted">Aucun scénario trouvé avec ces filtres.</p>
+          <a href="{% url 'scenario_list' %}" class="btn btn-secondary mt-2">Voir tous les scénarios</a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}
